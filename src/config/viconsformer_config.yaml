@@ -1,15 +1,15 @@
 data:
   images_train_folder: data/st_images
-  train_dataset: data/train.json
+  train_dataset: data/ViTextVQA_train.json
   images_val_folder: data/st_images
-  val_dataset: data/dev.json
-  test_dataset: data/test.json
-  num_worker: 0
+  val_dataset: data/ViTextVQA_dev.json
+  test_dataset: data/ViTextVQA_test.json
+  num_worker: 2
 
 tokenizer:
   padding: max_length
-  max_input_length: 100
-  max_target_length: 24
+  max_input_length: 80
+  max_target_length: 20
   truncation: True
   return_token_type_ids: True
   return_attention_mask: True
@@ -24,12 +24,7 @@ text_embedding:
   lora_r: 8
   lora_alpha: 16
   lora_dropout: 0.05
-
-vision_embedding:
-  image_encoder: google/vit-base-patch16-224-in21k
-  already_extracted: True
-  feature_path: data/feature_VIT
-  d_feature: 768
+  num_deps: 31
 
 ocr_embedding:
   sort_type: top-left bottom-right # score or top-left bottom-right
@@ -40,8 +35,16 @@ ocr_embedding:
   max_scene_text: 32 #if not use, set 0
   d_det: 256
   d_rec: 256
-  max_2d_position_embeddings: 4096
-  
+  max_2d_position_embeddings: 1024
+  num_distances: 32
+
+obj_embedding:
+  path_obj: data/vinvl_vinvl
+  use_attr: False # the  max_input_length should be set 300 if True else 100
+  max_bbox: 32 #if not use, set 0
+  d_obj: 2048
+  d_grid: 1024
+
 generator_args:
   max_length: 24
   min_length: 1
@@ -51,7 +54,8 @@ generator_args:
   early_stopping: True
 
 model:
-  type_model: prestu  # Custom name for the multimodal model
+  type_model: viconsformer  # Custom name for the multimodal model
+  backbone: VietAI/vit5-base
 
 train:
   output_dir: checkpoint
@@ -59,16 +63,16 @@ train:
   precision: float32
   with_image: True
   seed: 12345
-  num_train_epochs: 10
+  num_train_epochs: 100
   patience: 5
   learning_rate: 3.0e-5
-  weight_decay: 0.0
+  weight_decay: 1.0e-4
   metric_for_best_model: em
-  per_device_train_batch_size: 16
-  per_device_valid_batch_size: 16
+  per_device_train_batch_size: 32
+  per_device_valid_batch_size: 32
 
 infer:
   with_answer: True
   images_test_folder: data/st_images
-  test_dataset: data/test.json
-  per_device_eval_batch_size: 16
+  test_dataset: data/ViTextVQA_test.json
+  per_device_eval_batch_size: 32
