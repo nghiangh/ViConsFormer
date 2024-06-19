@@ -2,7 +2,7 @@ from typing import List, Dict
 import torch
 import torch.nn as nn
 from transformers import AutoTokenizer
-from src.model.encoding_text import T5_Encode_Feature, MultimodalBackbone
+from model.encoding_text import T5_Encode_Feature, MultimodalBackbone
 from model.vision_obj_encoding import Vision_Encode_Obj_Feature
 from model.vision_ocr_encoding import Vision_Encode_Ocr_Feature
 

@@ -15,4 +15,4 @@ The main idea is to design a module that can form the meaningful constituents of
 To this end, the Constituent module which contains the Constituent Formation component and the Multi-head Attention component was proposed to form the meaningful constituents of Vietnamese scene texts.
 
 Authors:
-- [Nghia Hieu Nguyen](mailto:nghiangh@uit.edu.vn)
+- [Nghia Hieu Nguyen](mailto:nghiangh@uit.edu.vn) - Faculty of Information Science and Engineering, University of Information Technology, Vietnam National University, Ho Chi Minh city, Vietnam.

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from transformers import AutoTokenizer, AutoConfig
 from typing import List, Dict
-from src.model.viconsformer import ATForConditionalGeneration
+from model.viconsformer import ViConsFormer
 from peft import LoraConfig, get_peft_model, TaskType
 
 def MultimodalBackbone(config):
@@ -20,7 +20,7 @@ def MultimodalBackbone(config):
                             "max_bbox": config["obj_embedding"]["max_bbox"],
                             "cuda_device":config['train']['cuda_device']})
 
-    embedding = ATForConditionalGeneration.from_pretrained(config["model"]["backbone"], 
+    embedding = ViConsFormer.from_pretrained(config["model"]["backbone"], 
                                                 config=model_config,
                                                 ignore_mismatched_sizes=True)
 

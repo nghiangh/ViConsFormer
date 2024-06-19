@@ -272,7 +272,7 @@ class ViConsFormerEncoder(T5Stack):
         if (ocr_info and obj_info) is not None:
             ocr_mask = ocr_ids.ne(self.config.pad_token_id).to(dtype=inputs_embeds.dtype, device=inputs_embeds.device)
             ocr_mask = ocr_mask.unsqueeze(1).unsqueeze(1)
-            ocr_embs, _ = self.ocr_encoder(ocr_ids, ocr_mask)
+            ocr_embs, cons_weights = self.ocr_encoder(ocr_ids, ocr_mask)
             # embedding OCR features from images
             ocr_features = self.semantic_ocr_embedding(ocr_info, ocr_embs)
 
@@ -466,6 +466,7 @@ class ViConsFormerEncoder(T5Stack):
             hidden_states=all_hidden_states,
             attentions=all_attentions,
             cross_attentions=all_cross_attentions,
+            constituents_weights=cons_weights
         )
 
 
@@ -704,6 +705,7 @@ class ViConsFormer(T5ForConditionalGeneration):
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
+            constituents_weights=encoder_outputs.constituents_weights
         )
 
     def prepare_inputs_for_generation(
