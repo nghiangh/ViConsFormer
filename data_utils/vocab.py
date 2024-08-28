@@ -1,7 +1,5 @@
-from typing import List, Dict, Optional
+from typing import Dict
 from datasets import load_dataset
-import os
-import pandas as pd
 
 def create_vocab(config: Dict):
     dataset = load_dataset(
