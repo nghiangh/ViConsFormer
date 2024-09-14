@@ -15,7 +15,6 @@ def MultimodalBackbone(config):
                             'd_obj': config['obj_embedding']['d_obj'],
                             'd_grid': config['obj_embedding']['d_obj'],
                             "vocab_size": tokenizer.vocab_size,
-                            "num_deps": config["text_embedding"]["num_deps"],
                             "max_scene_text": config["ocr_embedding"]["max_scene_text"],
                             "max_bbox": config["obj_embedding"]["max_bbox"],
                             "cuda_device":config['train']['cuda_device']})
@@ -23,18 +22,6 @@ def MultimodalBackbone(config):
     embedding = ViConsFormer.from_pretrained(config["model"]["backbone"], 
                                                 config=model_config,
                                                 ignore_mismatched_sizes=True)
-
-    if config['text_embedding']['use_lora']==True:
-        lora_config = LoraConfig(
-            r=config['text_embedding']['lora_r'],
-            lora_alpha=config['text_embedding']['lora_alpha'],
-            # target_modules=config['text_embedding']['lora_target_modules'],
-            lora_dropout=config['text_embedding']['lora_dropout'],
-            bias="none",
-            task_type=TaskType.SEQ_2_SEQ_LM,
-        )
-        # self.embedding = prepare_model_for_int8_training(self.embedding)
-        embedding = get_peft_model(embedding, lora_config)
     return embedding
 
 class T5_Encode_Feature(nn.Module):

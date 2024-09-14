@@ -4,15 +4,18 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import os
 from tqdm import tqdm
-from model.viconsformer import ViConsFormer
+from model.viconsformer_net import ViConsFormer_Model
 from eval_metric.evaluate import ScoreCalculator
 from data_utils.vqadataset import VQADataset
 from utils import countTrainableParameters, countParameters
 from utils.logging_utils import setup_logger
 import json
+from yacs.config import CfgNode
 
 class Task:
-    def __init__(self, config):
+    def __init__(self, config_dict):
+
+        config = CfgNode(config_dict)
 
         self.logger = setup_logger()
         self.initialize_hyperparameters(config)
@@ -20,8 +23,8 @@ class Task:
         
         # set the device for the training process
         cuda_device=config.train.cuda_device
-        device = torch.device(f'{cuda_device}' if torch.cuda.is_available() else 'cpu')
-        self.model = ViConsFormer(config).to(device)
+        self.device = torch.device(f'{cuda_device}' if torch.cuda.is_available() else 'cpu')
+        self.model = ViConsFormer_Model(config_dict).to(self.device) # use dictionary of config for initialize the ViT5 model
         total_params = countParameters(self.model)
         trainable_param = countTrainableParameters(self.model)
         self.logger.info(f'Trainable parameters: {100*(trainable_param / total_params):.2f}%')
@@ -48,10 +51,9 @@ class Task:
     def create_dataloaders(self, config):
         num_worker = config.data.num_worker
 
-        train_images = config.data.images_train_folder
         train_annotations = config.data.train_dataset
-        train_set = VQADataset(train_annotations, train_images)
-        train_batch = config.train.per_device_train_batch_size
+        train_set = VQADataset(train_annotations)
+        train_batch = config.train.batch_size
         self.train_loader = DataLoader(
             dataset=train_set, 
             batch_size=train_batch, 
@@ -59,10 +61,9 @@ class Task:
             shuffle=True
         )
 
-        val_images = config.data.images_val_folder
         val_annotations = config.data.val_dataset
-        val_set = VQADataset(val_annotations, val_images)
-        valid_batch = config.train.per_device_valid_batch_size
+        val_set = VQADataset(val_annotations)
+        valid_batch = config.train.batch_size
         self.val_loader = DataLoader(
             dataset=val_set,
             batch_size=valid_batch,
@@ -70,10 +71,9 @@ class Task:
             shuffle=True
         )
 
-        test_images = config.infer.images_test_folder
-        test_annotations = config.infer.test_dataset
-        test_set = VQADataset(test_annotations, test_images)
-        test_batch = config.infer.per_device_eval_batch_size
+        test_annotations = config.data.test_dataset
+        test_set = VQADataset(test_annotations)
+        test_batch = config.train.batch_size
         self.test_loader = DataLoader(
             dataset=test_set,
             batch_size=test_batch,
@@ -178,11 +178,10 @@ class Task:
 
         # Obtain the prediction from the model
         self.logger.info("Obtaining predictions...")
-        test_set =self.dataloader.load_test(self.with_answer)
         y_preds={}
         self.model.eval()
         with torch.no_grad():
-            for item in tqdm(test_set):
+            for item in tqdm(self.test_loader):
                 with torch.autocast(device_type='cuda', dtype=self.cast_dtype, enabled=True):
                     answers = self.model(item['question'],item['image_id'])
                     for i in range(len(answers)):

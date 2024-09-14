@@ -5,7 +5,6 @@ from typing import List
 from typing import List, Dict,Any
 import numpy as np
 import scipy.spatial.distance as distance
-from utils.utils import remove_vietnamese_accents, word_segmentation
 import random
 
 class Vision_Encode_Ocr_Feature(nn.Module):
@@ -154,12 +153,7 @@ class Vision_Encode_Ocr_Feature(nn.Module):
                 features['rec_features'] = self.pad_tensor(features['rec_features'], self.max_scene_text, 0.)
                 features['boxes'] = self.pad_tensor(features['boxes'], self.max_scene_text, 0.)
             
-            if self.use_word_seg:
-                texts = word_segmentation(' '.join(features['texts']))
-                texts = ' '.join(texts)
-                texts = texts.split() 
-            else:
-                texts=features['texts']
+            texts=features['texts']
 
             if self.max_scene_text==0:
                 texts = ''
@@ -178,7 +172,7 @@ class Vision_Encode_Ocr_Feature(nn.Module):
             ocr_info={
                     "det_features": features["det_features"].float().detach().cpu(),
                     "rec_features": features["rec_features"].float().detach().cpu(),
-                    "texts": remove_vietnamese_accents(texts,self.remove_accents_rate),
+                    "texts": texts,
                     "boxes": features["boxes"].float().detach().cpu(),
                     'height': features['height'],
                     'width': features['weight'],

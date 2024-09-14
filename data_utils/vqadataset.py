@@ -6,26 +6,22 @@ from utils import preprocess_sentence
 from utils.instance import Instance
 
 class VQADataset(Dataset):
-    def __init__(self, annotation_path, image_path, remove_accents_rate=0, use_word_seg=False):
+    def __init__(self, annotation_path):
         with open(annotation_path, 'r') as file:
             json_data = json.load(file)
         
-        self.annotations = self.load_annotations(json_data, image_path, remove_accents_rate, use_word_seg)
+        self.annotations = self.load_annotations(json_data)
     
-    def load_annotations(self, json_data, image_path) -> List[Dict]:
+    def load_annotations(self, json_data) -> List[Dict]:
         annotations = []
         for ann in json_data["annotations"]:
-                question = ann["question"].replace('?','')
-                if "answers" in answer:
-                    answer = preprocess_sentence(ann['answers'][0])
-                else:
-                    answer = None
-                question = preprocess_sentence(question)
+                question = ann["question"]
+                answer = ann["answers"][0]
                 annotation = {
                     "id": ann['id'],
-                    "image_id": os.path.join(image_path,str(ann['image_id'])),
-                    "question": question,
-                    "answer": answer,
+                    "image_id": str(ann['image_id']),
+                    "question": preprocess_sentence(question),
+                    "answer": preprocess_sentence(answer),
                 }
                 annotations.append(annotation)
 
@@ -34,7 +30,7 @@ class VQADataset(Dataset):
     def __getitem__(self, index):
         item = self.annotations[index]
         
-        return Instance(item)
+        return Instance(**item)
     
     def __len__(self) -> int:
         return len(self.annotations)

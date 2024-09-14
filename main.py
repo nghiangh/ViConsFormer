@@ -5,9 +5,9 @@ from task import Task
 
 def main(config_path: Text) -> None:
     with open(config_path) as conf_file:
-        config = yaml.safe_load(conf_file)
+        config_dict = yaml.safe_load(conf_file)
     
-    main_task = Task(config)
+    main_task = Task(config_dict)
     main_task.training()
     main_task.get_predictions()
     
