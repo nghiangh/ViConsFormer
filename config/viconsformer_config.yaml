@@ -2,7 +2,7 @@ data:
   train_dataset: /home/nhnghia/Projects/ViTextVQA-dataset/ViTextVQA_train.json
   val_dataset: /home/nhnghia/Projects/ViTextVQA-dataset/ViTextVQA_dev.json
   test_dataset: /home/nhnghia/Projects/ViTextVQA-dataset/ViTextVQA_test.json
-  num_worker: 0
+  num_worker: 2
 
 tokenizer:
   padding: max_length
@@ -13,7 +13,7 @@ tokenizer:
   return_attention_mask: True
 
 text_embedding:
-  text_encoder: VietAI/vit5-base
+  text_encoder: VietAI/vit5-large
 
 ocr_embedding:
   sort_type: top-left bottom-right # score or top-left bottom-right
@@ -49,7 +49,7 @@ model:
 train:
   output_dir: checkpoint
   cuda_device: cuda:0
-  precision: float32
+  precision: float16
   with_image: True
   seed: 12345
   num_train_epochs: 100
@@ -58,4 +58,3 @@ train:
   weight_decay: 1.0e-4
   metric_for_best_model: em
   batch_size: 32
-
