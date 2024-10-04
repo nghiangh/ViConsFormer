@@ -25,24 +25,6 @@ def clones(module, N):
     "Produce N identical layers."
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-def attention(query, key, value, mask=None, dropout=None, group_prob=None):
-    "Compute 'Scaled Dot Product Attention'"
-    d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-    if mask is not None:
-        seq_len=query.size()[-2]
-        b = torch.from_numpy(np.diag(np.ones(seq_len, dtype=np.int32), 0)).to(query.device)
-        scores = scores.masked_fill(torch.logical_or(mask, b) == 0, -1e4)
-    if group_prob is not None:
-        p_attn = F.softmax(scores, dim = -1)
-        p_attn = p_attn*group_prob
-    else:
-        p_attn = F.softmax(scores, dim = -1)
-    if dropout is not None:
-        p_attn = dropout(p_attn)
-
-    return torch.matmul(p_attn, value), p_attn
-    
 class ScaledDotProductAttention(nn.Module):
     def __init__(self, head: int, d_model: int, d_kv: int):
         super(ScaledDotProductAttention, self).__init__()
@@ -56,17 +38,7 @@ class ScaledDotProductAttention(nn.Module):
         self.fc_k = nn.Linear(d_model, head * d_kv)
         self.fc_v = nn.Linear(d_model, head * d_kv)
 
-        self.init_weights()
-
-    def init_weights(self):
-        nn.init.xavier_uniform_(self.fc_q.weight)
-        nn.init.xavier_uniform_(self.fc_k.weight)
-        nn.init.xavier_uniform_(self.fc_v.weight)
-        nn.init.constant_(self.fc_q.bias, 0)
-        nn.init.constant_(self.fc_k.bias, 0)
-        nn.init.constant_(self.fc_v.bias, 0)
-
-    def forward(self, queries, keys, values, group_prob=None, attention_mask=None):
+    def forward(self, queries, keys, values, group_prob, attention_mask):
         b_s, nq = queries.shape[:2]
         nk = keys.shape[1]
         q = self.fc_q(queries).view(b_s, nq, self.head, self.d_q).permute(0, 2, 1, 3)   # (b_s, h, nq, d_q)
@@ -93,18 +65,10 @@ class GroupAttention(nn.Module):
         self.norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
 
-        self.init_weights()
-
-    def init_weights(self):
-        nn.init.xavier_uniform_(self.linear_key.weight)
-        nn.init.xavier_uniform_(self.linear_query.weight)
-        nn.init.constant_(self.linear_key.bias, 0)
-        nn.init.constant_(self.linear_query.bias, 0)
-
     def forward(self, context, eos_mask, prior):
         bs, seq_len = context.size()[:2]
 
-        context: torch.Tensor = self.norm(context).view(bs, seq_len, self.h, self.d_k).transpose(1, 2)
+        context = self.norm(context).view(bs, seq_len, self.h, self.d_k).transpose(1, 2)
 
         a = torch.diag(torch.ones(seq_len - 1), 1).long().to(context.device)
         b = torch.diag(torch.ones(seq_len), 0).long().to(context.device)

@@ -87,7 +87,7 @@ class Task:
         
         if os.path.exists(os.path.join(self.save_path, 'last_model.pth')):
             checkpoint = torch.load(os.path.join(self.save_path, 'last_model.pth'))
-            self.base_model.load_state_dict(checkpoint['model_state_dict'])
+            self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.logger.info('Loaded saved model')
             initial_epoch = checkpoint['epoch'] + 1
@@ -129,7 +129,7 @@ class Task:
                 with tqdm(desc='Epoch %d - Validating' % (epoch+1), unit='it', total=len(self.val_loader)) as pbar:
                     for it, item in enumerate(tqdm(self.val_loader)):
                         with torch.autocast(device_type='cuda', dtype=self.cast_dtype, enabled=True):
-                            pred_answers = self.base_model(item.question, item.image_id)    
+                            pred_answers = self.model(item.question, item.image_id)    
                             valid_em+=self.compute_score.em(item.answer, pred_answers)
                             valid_f1+=self.compute_score.f1_token(item.answer, pred_answers)
                     valid_em /= len(self.val_loader)
@@ -146,7 +146,7 @@ class Task:
             # save the last model
             torch.save({
                 'epoch': epoch,
-                'model_state_dict': self.base_model.state_dict(),
+                'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
                 'score': score}, os.path.join(self.save_path, 'last_model.pth'))
             
@@ -160,7 +160,7 @@ class Task:
                 best_score = score
                 torch.save({
                     'epoch': epoch,
-                    'model_state_dict': self.base_model.state_dict(),
+                    'model_state_dict': self.model.state_dict(),
                     # 'optimizer_state_dict': self.optimizer.state_dict(),
                     'score':score}, os.path.join(self.save_path, 'best_model.pth'))
                 print(f"saved the best model with {self.best_metric} of {score:.4f}")
