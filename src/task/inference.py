@@ -4,7 +4,6 @@ from typing import Dict
 import pandas as pd
 import torch
 import transformers
-import json
 from tqdm import tqdm
 from builder.builder import build_model
 from data_utils.load_data import Load_Data
@@ -38,42 +37,27 @@ class Predict:
         # Obtain the prediction from the model
         logging.info("Obtaining predictions...")
         test_set =self.dataloader.load_test(self.with_answer)
-        if self.with_answer:
-            ids=[]
-            gts=[]
-            preds=[]
-            self.model.eval()
-            with torch.no_grad():
-                for it,item in enumerate(tqdm(test_set)):
-                    with torch.autocast(device_type='cuda', dtype=self.cast_dtype, enabled=True):
-                        answers = self.model(item['question'],item['image_id'])                    
-                        ids.extend(item['id'])
-                        gts.extend(item['answer'])
-                        preds.extend(answers)
-            test_wups=self.compute_score.wup(gts,preds)
-            test_em=self.compute_score.em(gts,preds)
-            test_f1=self.compute_score.f1_token(gts,preds)
-            test_cider=self.compute_score.cider_score(gts,preds)
-            data={'id':ids,
-                "ground_truth":gts,
-                "predicts": preds}
-            df = pd.DataFrame(data)
-            df.to_csv(os.path.join(self.save_path ,'result.csv'), index=False)
-            print(f"test wups: {test_wups:.4f} test em: {test_em:.4f} test f1: {test_f1:.4f} test cider: {test_cider:.4f}")
-            with open(os.path.join(self.save_path,'log.txt'), 'a') as file:
-                file.write(f"\ntest wups: {test_wups:.4f} test em: {test_em:.4f} test f1: {test_f1:.4f} test cider: {test_cider:.4f}\n")
-        else:
-            y_preds={}
-            self.model.eval()
-            with torch.no_grad():
-                for it,item in enumerate(tqdm(test_set)):
-                    with torch.autocast(device_type='cuda', dtype=self.cast_dtype, enabled=True):
-                        answers = self.model(item['question'],item['image_id'])
-                        for i in range(len(answers)):
-                            if isinstance(item['id'][i],torch.Tensor):
-                                ids=item['id'].tolist()
-                            else:
-                                ids=item['id']
-                            y_preds[str(ids[i])] = answers[i]
-            with open(os.path.join(self.save_path,'results.json'), 'w', encoding='utf-8') as r:
-                json.dump(y_preds, r, ensure_ascii=False, indent=4)
+        ids=[]
+        gts=[]
+        preds=[]
+        self.model.eval()
+        with torch.no_grad():
+            for _,item in enumerate(tqdm(test_set)):
+                with torch.autocast(device_type='cuda', dtype=self.cast_dtype, enabled=True):
+                    answers = self.model(item['question'],item['image_id'])                    
+                    ids.extend(item['id'])
+                    gts.extend(item['answer'])
+                    preds.extend(answers)
+        test_wups=self.compute_score.wup(gts,preds)
+        test_em=self.compute_score.em(gts,preds)
+        test_f1=self.compute_score.f1_token(gts,preds)
+        test_cider=self.compute_score.cider_score(gts,preds)
+        data={'id':ids,
+            "ground_truth":gts,
+            "predicts": preds}
+        df = pd.DataFrame(data)
+        df.to_csv(os.path.join(self.save_path ,'result.csv'), index=False)
+        print(f"test wups: {test_wups:.4f} test em: {test_em:.4f} test f1: {test_f1:.4f} test cider: {test_cider:.4f}")
+        with open(os.path.join(self.save_path,'log.txt'), 'a') as file:
+            file.write(f"\ntest wups: {test_wups:.4f} test em: {test_em:.4f} test f1: {test_f1:.4f} test cider: {test_cider:.4f}\n")
+    
