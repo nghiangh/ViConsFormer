@@ -2,10 +2,9 @@ import torch
 from torch import nn
 import os
 from typing import List
-from collections import Counter
 from typing import List, Dict,Any
 import numpy as np
-from utils.utils import preprocess_sentence
+from utils import preprocess_sentence
 
 class Vision_Encode_Obj_Feature(nn.Module):
     def __init__(self, config: Dict):

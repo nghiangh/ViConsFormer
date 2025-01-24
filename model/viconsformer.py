@@ -25,54 +25,36 @@ def clones(module, N):
     "Produce N identical layers."
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-def attention(query, key, value, mask=None, dropout=None, group_prob=None):
-    "Compute 'Scaled Dot Product Attention'"
-    d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-    if mask is not None:
-        seq_len=query.size()[-2]
-        b = torch.from_numpy(np.diag(np.ones(seq_len, dtype=np.int32), 0)).to(query.device)
-        scores = scores.masked_fill(torch.logical_or(mask, b) == 0, -1e4)
-    if group_prob is not None:
-        p_attn = F.softmax(scores, dim = -1)
-        p_attn = p_attn*group_prob
-    else:
-        p_attn = F.softmax(scores, dim = -1)
-    if dropout is not None:
-        p_attn = dropout(p_attn)
+class ScaledDotProductAttention(nn.Module):
+    def __init__(self, head: int, d_model: int, d_kv: int):
+        super(ScaledDotProductAttention, self).__init__()
 
-    return torch.matmul(p_attn, value), p_attn
-    
-class MultiHeadedAttention(nn.Module):
-    def __init__(self, h, d_model, dropout=0.1):
-        "Take in model size and number of heads."
-        super(MultiHeadedAttention, self).__init__()
-        assert d_model % h == 0
-        # We assume d_v always equals d_k
-        self.d_k = d_model // h
-        self.h = h
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
-        self.attn = None
-        self.dropout = nn.Dropout(p=dropout)
-        
-    def forward(self, query, key, value, group_prob=None, mask=None):
-        nbatches = query.size(0)
-        
-        # 1) Do all the linear projections in batch from d_model => h x d_k 
-        # query,key,value shape: (nbatches, h, seq_len, d_k)
-        query, key, value = \
-            [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-             for l, x in zip(self.linears, (query, key, value))]
-        
-        # 2) Apply attention on all the projected vectors in batch. 
-        x, self.attn = attention(query, key, value, mask=mask, 
-                                 dropout=self.dropout, group_prob=group_prob)
-        
-        # 3) "Concat" using a view and apply a final linear. 
-        x = x.transpose(1, 2).contiguous() \
-             .view(nbatches, -1, self.h * self.d_k)
-        return self.linears[-1](x)
-    
+        self.d_model = d_model
+        self.d_q = d_kv
+        self.d_kv = d_kv
+        self.head = head
+
+        self.fc_q = nn.Linear(d_model, head * d_kv)
+        self.fc_k = nn.Linear(d_model, head * d_kv)
+        self.fc_v = nn.Linear(d_model, head * d_kv)
+
+    def forward(self, queries, keys, values, group_prob, attention_mask):
+        b_s, nq = queries.shape[:2]
+        nk = keys.shape[1]
+        q = self.fc_q(queries).view(b_s, nq, self.head, self.d_q).permute(0, 2, 1, 3)   # (b_s, h, nq, d_q)
+        k = self.fc_k(keys).view(b_s, nk, self.head, self.d_kv).permute(0, 2, 3, 1)     # (b_s, h, nk, d_kv)
+        v = self.fc_v(values).view(b_s, nk, self.head, self.d_kv).permute(0, 2, 1, 3)   # (b_s, h, nk, d_kv)
+
+        att = torch.matmul(q, k) / np.sqrt(self.d_kv)  # (b_s, h, nq, nk)
+        if attention_mask is not None:
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(1)
+            att.masked_fill(attention_mask == 0, -1e4)
+        att = torch.softmax(att, dim=-1)
+        att = att * group_prob
+        output = torch.matmul(att, v).permute(0, 2, 1, 3).reshape(b_s, -1, self.d_model)
+
+        return output
+
 class GroupAttention(nn.Module):
     def __init__(self, head, d_model, dropout=0.8):
         super(GroupAttention, self).__init__()
@@ -100,15 +82,15 @@ class GroupAttention(nn.Module):
         scores = torch.matmul(query, key.transpose(-2, -1)) / self.d_k
         
         scores = scores.masked_fill(mask == 0, -1e4)
-        neibor_attn = F.softmax(scores, dim=-1)
-        neibor_attn = torch.sqrt(neibor_attn*neibor_attn.transpose(-2,-1) + 1e-9)
+        neibor_attn = F.softmax(scores, dim = -1)
+        neibor_attn = torch.sqrt(neibor_attn*neibor_attn.transpose(-2,-1) + 1e-4)
         neibor_attn = prior + (1. - prior)*neibor_attn
 
-        tri_matrix = torch.triu(torch.ones(seq_len, seq_len), diagonal=0).float().to(context.device)
+        tri_matrix = torch.triu(torch.ones(seq_len, seq_len), diagonal = 0).float().to(context.device)
         tri_matrix = tri_matrix.unsqueeze(0).unsqueeze(0)
-        t = torch.log(neibor_attn + 1e-9).masked_fill(a==0, 0).matmul(tri_matrix)
-        g_attn = tri_matrix.matmul(t).exp().masked_fill((tri_matrix.int() - b)==0, 0)
-        g_attn = g_attn + g_attn.transpose(-2, -1) + neibor_attn.masked_fill(b==0, 1e-9)
+        t = torch.log(neibor_attn + 1e-9).masked_fill(a == 0, 0).matmul(tri_matrix)
+        g_attn = tri_matrix.matmul(t).exp().masked_fill((tri_matrix.int() - b) == 0, 0)
+        g_attn = g_attn + g_attn.transpose(-2, -1) + neibor_attn.masked_fill(b == 0, 1e-4)
         
         return g_attn, neibor_attn
 
@@ -121,7 +103,6 @@ class PositionwiseFeedForward(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        #return self.w_2(self.dropout(F.relu(self.w_1(x))))
         return self.w_2(self.dropout(F.gelu(self.w_1(x))))
 
 class PositionalEncoding(nn.Module):
@@ -161,10 +142,10 @@ class SublayerConnection(nn.Module):
 
 class OCREncoderLayer(nn.Module):
     "Encoder is made up of self-attn and feed forward (defined below)"
-    def __init__(self, head, d_model, d_ff, dropout=0.1):
+    def __init__(self, head, d_model, d_kv, d_ff, dropout=0.1):
         super().__init__()
         self.group_attn = GroupAttention(head, d_model)
-        self.self_attn = MultiHeadedAttention(head, d_model)
+        self.self_attn = ScaledDotProductAttention(head, d_model, d_kv)
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff)
         self.sublayer = clones(SublayerConnection(d_model, dropout), 2)
         self.size = d_model
@@ -176,10 +157,10 @@ class OCREncoderLayer(nn.Module):
         return self.sublayer[1](x, self.feed_forward), group_prob, break_prob
     
 class OCREncoder(nn.Module):
-    def __init__(self, head, d_model, d_ff, word_embed):
+    def __init__(self, head, d_model, d_kv, d_ff, word_embed):
         super().__init__()
         self.word_embed = word_embed
-        self.layers = clones(OCREncoderLayer(head, d_model, d_ff), 3)
+        self.layers = clones(OCREncoderLayer(head, d_model, d_kv, d_ff), 3)
         self.norm = nn.LayerNorm(d_model)
 
     def forward(self, inputs, mask):
@@ -210,8 +191,7 @@ class ViConsFormerEncoder(T5Stack):
         self.semantic_object_embedding = SemanticObjectEmbedding(config)
         self.semantic_ocr_embedding = SemanticOCREmbedding(config)
         self.spatial_embedding = SpatialCirclePosition(config)
-        self.ocr_encoder = OCREncoder(config.num_heads, config.d_model, 
-                                      config.d_ff, self.embed_tokens)
+        self.ocr_encoder = OCREncoder(config.num_heads, config.d_model, config.d_kv, config.d_ff, self.embed_tokens)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -272,7 +252,7 @@ class ViConsFormerEncoder(T5Stack):
         if (ocr_info and obj_info) is not None:
             ocr_mask = ocr_ids.ne(self.config.pad_token_id).to(dtype=inputs_embeds.dtype, device=inputs_embeds.device)
             ocr_mask = ocr_mask.unsqueeze(1).unsqueeze(1)
-            ocr_embs, cons_weights = self.ocr_encoder(ocr_ids, ocr_mask)
+            ocr_embs, _ = self.ocr_encoder(ocr_ids, ocr_mask)
             # embedding OCR features from images
             ocr_features = self.semantic_ocr_embedding(ocr_info, ocr_embs)
 
@@ -465,8 +445,7 @@ class ViConsFormerEncoder(T5Stack):
             past_key_values=present_key_value_states,
             hidden_states=all_hidden_states,
             attentions=all_attentions,
-            cross_attentions=all_cross_attentions,
-            constituents_weights=cons_weights
+            cross_attentions=all_cross_attentions
         )
 
 
@@ -704,8 +683,7 @@ class ViConsFormer(T5ForConditionalGeneration):
             cross_attentions=decoder_outputs.cross_attentions,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
-            encoder_attentions=encoder_outputs.attentions,
-            constituents_weights=encoder_outputs.constituents_weights
+            encoder_attentions=encoder_outputs.attentions
         )
 
     def prepare_inputs_for_generation(

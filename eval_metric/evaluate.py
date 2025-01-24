@@ -1,18 +1,18 @@
-from typing import Dict, Tuple, List
+from typing import List
 import numpy as np
 from eval_metric.f1 import F1
 # from eval_metric.wup import Wup
 from eval_metric.em import Exact_Match
-from eval_metric.bert_score import Bert_Score
+# from eval_metric.bert_score import Bert_Score
 from eval_metric.cider import CiderScorer
-from utils.utils import normalize_text,preprocess_sentence
+from utils import normalize_text,preprocess_sentence
 
 class ScoreCalculator:
     def __init__(self):
         self.f1_caculate=F1()
         self.em_caculate=Exact_Match()
         # self.Wup_caculate=Wup()
-        self.bert_caculate=Bert_Score()
+        # self.bert_caculate=Bert_Score()
     #F1 score character level
     def f1_char(self,labels: List[str], preds: List[str]) -> float:        
         scores=[]
@@ -40,11 +40,11 @@ class ScoreCalculator:
         # return np.mean(scores)
         return 0
     #Bert score
-    def bert_score(self,labels: List[str], preds: List[str]) -> float:
-        labels=[preprocess_sentence(normalize_text(label)) for label in labels]
-        preds=[preprocess_sentence(normalize_text(pred)) for pred in preds ]
-        scores=self.bert_caculate.compute_score(labels,preds)
-        return scores
+    # def bert_score(self,labels: List[str], preds: List[str]) -> float:
+    #     labels=[preprocess_sentence(normalize_text(label)) for label in labels]
+    #     preds=[preprocess_sentence(normalize_text(pred)) for pred in preds ]
+    #     scores=self.bert_caculate.compute_score(labels,preds)
+    #     return scores
     #Cider score
     def cider_score(self,labels: List[str], preds: List[str]) -> float:
         labels=[[preprocess_sentence(normalize_text(label))] for label in labels]
